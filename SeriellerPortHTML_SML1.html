@@ -1,0 +1,1128 @@
+
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Serielle COM-Port-Konsole</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: #0d1b2d;
+      --panel2: #12243a;
+      --line: #29415f;
+      --text: #e8f0fa;
+      --muted: #9fb0c5;
+      --accent: #39a0ff;
+      --accent2: #70d6a5;
+      --danger: #ff6b6b;
+      --warning: #ffc857;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #102641 0, var(--bg) 48%);
+      color: var(--text);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+    }
+
+    .app {
+      width: min(1500px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 2rem); }
+    .subtitle { color: var(--muted); margin-top: 5px; font-size: .92rem; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #081523cc;
+      white-space: nowrap;
+    }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 10px currentColor; }
+    .dot.connected { background: var(--accent2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 340px) 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 15px 40px #0006;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      padding: 14px 16px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--line);
+      background: #10243a;
+    }
+
+    .panel-body { padding: 16px; }
+    .settings { display: grid; gap: 13px; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    label { display: grid; gap: 6px; color: var(--muted); font-size: .85rem; }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 11px;
+      color: var(--text);
+      background: #071522;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px #39a0ff22;
+    }
+
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--text);
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 13px;
+      color: var(--text);
+      background: #152a43;
+      cursor: pointer;
+      transition: transform .12s ease, background .12s ease, opacity .12s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); background: #1b3859; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    button.primary { background: #087bd4; border-color: #2699ed; }
+    button.primary:hover:not(:disabled) { background: #0a8ced; }
+    button.danger { color: #ffd2d2; }
+
+    .button-stack { display: grid; gap: 9px; margin-top: 4px; }
+    .hint { color: var(--muted); font-size: .78rem; line-height: 1.45; }
+    .warning { color: var(--warning); }
+
+    .main { display: grid; grid-template-rows: minmax(400px, 62vh) auto; gap: 16px; }
+    .terminal-panel { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 9px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #10243a;
+    }
+
+    .toolbar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .counter { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    #terminal {
+      overflow: auto;
+      padding: 12px;
+      background: #030b13;
+      font: 13px/1.55 Consolas, "Cascadia Mono", monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      user-select: text;
+    }
+
+    .log-line {
+      display: grid;
+      grid-template-columns: 112px 34px 1fr;
+      gap: 9px;
+      padding: 2px 4px;
+      border-bottom: 1px solid #ffffff0a;
+    }
+
+    .time { color: #7892af; }
+    .rx { color: var(--accent2); font-weight: 700; }
+    .tx { color: var(--warning); font-weight: 700; }
+    .bytes { color: #d9e8f8; }
+    .empty { color: #60768e; padding: 18px; }
+
+    .terminal-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .78rem;
+    }
+
+    .send-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: stretch; }
+    textarea { min-height: 100px; resize: vertical; font-family: Consolas, "Cascadia Mono", monospace; }
+    .send-actions { display: grid; min-width: 120px; gap: 9px; }
+    .send-options { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; margin-top: 10px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100vw - 36px));
+      padding: 12px 15px;
+      border-radius: 12px;
+      background: #152a43;
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 35px #0009;
+      opacity: 0;
+      transform: translateY(14px);
+      pointer-events: none;
+      transition: .2s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { border-color: #a84040; color: #ffd0d0; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .main { grid-template-rows: minmax(420px, 60vh) auto; }
+    }
+
+    @media (max-width: 540px) {
+      .app { padding: 10px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .row2, .send-grid { grid-template-columns: 1fr; }
+      .send-actions { grid-template-columns: 1fr 1fr; }
+      .log-line { grid-template-columns: 100px 28px 1fr; gap: 5px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Serielle COM-Port-Konsole</h1>
+        <div class="subtitle">Web Serial Terminal mit Byte-Protokoll, Zeitstempel und automatischem Zeilenabschluss</div>
+      </div>
+      <div class="status" aria-live="polite">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusText">Nicht verbunden</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside class="panel">
+        <div class="panel-title">Verbindung und Format</div>
+        <div class="panel-body settings">
+          <label>
+            Baudrate
+            <select id="baudRate">
+              <option>300</option><option>600</option><option>1200</option><option>2400</option>
+              <option>4800</option><option selected>9600</option><option>19200</option>
+              <option>38400</option><option>57600</option><option>115200</option>
+            </select>
+          </label>
+
+          <div class="row2">
+            <label>
+              Bytelänge
+              <select id="dataBits">
+                <option selected>7</option><option>8</option>
+              </select>
+            </label>
+            <label>
+              Stopbits
+              <select id="stopBits">
+                <option selected>1</option><option>2</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Parität
+            <select id="parity">
+              <option value="none">Keine</option>
+              <option value="even" selected>Gerade (Even)</option>
+              <option value="odd">Ungerade (Odd)</option>
+            </select>
+          </label>
+
+          <label>
+            Flusssteuerung
+            <select id="flowControl">
+              <option value="none" selected>Keine</option>
+              <option value="hardware">Hardware</option>
+            </select>
+          </label>
+
+          <hr style="width:100%;border:0;border-top:1px solid var(--line)">
+
+          <label class="checkline">
+            <input id="splitOnByte" type="checkbox" checked />
+            Neue Zeile bei Trennzeichen
+          </label>
+
+          <div class="row2">
+            <label>
+              Zeichenart
+              <select id="delimiterMode">
+                <option value="hex" selected>Hex-Byte</option>
+                <option value="char">Zeichen</option>
+              </select>
+            </label>
+            <label>
+              Trennzeichen
+              <input id="delimiter" value="0A" maxlength="4" spellcheck="false" />
+            </label>
+          </div>
+
+          <label class="checkline">
+            <input id="splitOnIdle" type="checkbox" checked />
+            Neue Zeile nach Empfangspause
+          </label>
+
+          <label>
+            Pause in Millisekunden
+            <input id="idleMs" type="number" min="1" step="10" value="200" />
+          </label>
+
+          <div class="button-stack">
+            <button id="connectBtn" class="primary">COM-Port auswählen und öffnen</button>
+            <button id="disconnectBtn" disabled>Verbindung trennen</button>
+          </div>
+
+          <div id="supportHint" class="hint"></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="panel terminal-panel">
+          <div class="toolbar">
+            <div class="toolbar-group">
+              <strong>Empfang und Versand</strong>
+              <span class="counter"><span id="rxCount">0</span> RX / <span id="txCount">0</span> TX Bytes</span>
+            </div>
+            <div class="toolbar-group">
+              <label class="checkline"><input id="autoScroll" type="checkbox" checked /> Auto-Scroll</label>
+              <button id="copyBtn">Kopieren</button>
+              <button id="exportBtn">Exportieren</button>
+              <button id="clearBtn" class="danger">Leeren</button>
+            </div>
+          </div>
+          <div id="terminal" role="log" aria-live="polite"><div class="empty">Noch keine Daten empfangen oder gesendet.</div></div>
+          <div class="terminal-footer">
+            <span>Anzeige: hexadezimale Bytes</span>
+            <span id="lineState">Puffer: 0 Bytes</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Daten senden</div>
+          <div class="panel-body">
+            <div class="send-grid">
+              <textarea id="sendData" placeholder="Text eingeben oder Hex-Bytes, z. B. 02 31 32 03"></textarea>
+              <div class="send-actions">
+                <button id="sendBtn" class="primary" disabled>Senden</button>
+                <button id="sendClearBtn">Eingabe leeren</button>
+              </div>
+            </div>
+            <div class="send-options">
+              <label class="checkline"><input type="radio" name="sendMode" value="text" checked /> Text (UTF-8)</label>
+              <label class="checkline"><input type="radio" name="sendMode" value="hex" /> Hex-Bytes</label>
+              <label class="checkline"><input id="appendCr" type="checkbox" /> CR anhängen</label>
+              <label class="checkline"><input id="appendLf" type="checkbox" /> LF anhängen</label>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script>
+    "use strict";
+
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      baudRate: $("baudRate"), dataBits: $("dataBits"), stopBits: $("stopBits"),
+      parity: $("parity"), flowControl: $("flowControl"), splitOnByte: $("splitOnByte"),
+      delimiterMode: $("delimiterMode"), delimiter: $("delimiter"), splitOnIdle: $("splitOnIdle"),
+      idleMs: $("idleMs"), connectBtn: $("connectBtn"), disconnectBtn: $("disconnectBtn"),
+      sendBtn: $("sendBtn"), sendData: $("sendData"), sendClearBtn: $("sendClearBtn"),
+      appendCr: $("appendCr"), appendLf: $("appendLf"), terminal: $("terminal"),
+      clearBtn: $("clearBtn"), copyBtn: $("copyBtn"), exportBtn: $("exportBtn"),
+      autoScroll: $("autoScroll"), statusDot: $("statusDot"), statusText: $("statusText"),
+      supportHint: $("supportHint"), rxCount: $("rxCount"), txCount: $("txCount"),
+      lineState: $("lineState"), toast: $("toast")
+    };
+
+    let port = null;
+    let reader = null;
+    let keepReading = false;
+    let receiveBuffer = [];
+    let idleTimer = null;
+    let rxBytes = 0;
+    let txBytes = 0;
+    const logEntries = [];
+
+    const serialSupported = "serial" in navigator;
+    els.supportHint.innerHTML = serialSupported
+      ? "Bereit. Der Browser fordert beim Öffnen die Auswahl eines seriellen Geräts an."
+      : '<span class="warning">Web Serial wird in diesem Browser nicht unterstützt. Bitte einen Chromium-basierten Desktop-Browser über HTTPS oder localhost verwenden.</span>';
+    els.connectBtn.disabled = !serialSupported;
+
+    function showToast(message, error = false) {
+      els.toast.textContent = message;
+      els.toast.className = "toast show" + (error ? " error" : "");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => els.toast.className = "toast", 3500);
+    }
+
+    function timestamp(date = new Date()) {
+      return date.toLocaleTimeString("de-DE", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3
+      });
+    }
+
+    function dateStamp(date = new Date()) {
+      return date.toLocaleString("de-DE", { hour12: false }) + "." + String(date.getMilliseconds()).padStart(3, "0");
+    }
+
+    function hex(bytes) {
+      return Array.from(bytes, b => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+    }
+
+    function removeEmptyMessage() {
+      const empty = els.terminal.querySelector(".empty");
+      if (empty) empty.remove();
+    }
+
+    function addLog(direction, bytes, reason = "") {
+      if (!bytes || bytes.length === 0) return;
+      removeEmptyMessage();
+      const now = new Date();
+      const values = Array.from(bytes);
+      const entry = { time: dateStamp(now), shortTime: timestamp(now), direction, bytes: values, reason };
+      logEntries.push(entry);
+
+      const row = document.createElement("div");
+      row.className = "log-line";
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = entry.shortTime;
+      const dir = document.createElement("span");
+      dir.className = direction.toLowerCase();
+      dir.textContent = direction;
+      const data = document.createElement("span");
+      data.className = "bytes";
+      data.textContent = hex(values) + (reason ? "  [" + reason + "]" : "");
+      row.append(time, dir, data);
+      els.terminal.appendChild(row);
+
+      if (els.autoScroll.checked) els.terminal.scrollTop = els.terminal.scrollHeight;
+    }
+
+    function setConnected(connected) {
+      els.statusDot.classList.toggle("connected", connected);
+      els.statusText.textContent = connected ? "Verbunden" : "Nicht verbunden";
+      els.connectBtn.disabled = connected || !serialSupported;
+      els.disconnectBtn.disabled = !connected;
+      els.sendBtn.disabled = !connected;
+      for (const el of [els.baudRate, els.dataBits, els.stopBits, els.parity, els.flowControl]) {
+        el.disabled = connected;
+      }
+    }
+
+    function delimiterByte() {
+      if (!els.splitOnByte.checked) return null;
+      const value = els.delimiter.value;
+      if (els.delimiterMode.value === "hex") {
+        const cleaned = value.trim().replace(/^0x/i, "");
+        if (!/^[0-9a-fA-F]{1,2}$/.test(cleaned)) throw new Error("Das Trennzeichen muss ein Hex-Byte von 00 bis FF sein.");
+        return parseInt(cleaned, 16);
+      }
+      if (!value.length) throw new Error("Bitte ein Trennzeichen eingeben.");
+      const encoded = new TextEncoder().encode(value[0]);
+      if (encoded.length !== 1) throw new Error("Das Trennzeichen muss als einzelnes Byte darstellbar sein.");
+      return encoded[0];
+    }
+
+    function refreshBufferState() {
+      els.lineState.textContent = "Puffer: " + receiveBuffer.length + " Bytes";
+    }
+
+    function flushReceive(reason) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+      if (receiveBuffer.length) {
+        addLog("RX", receiveBuffer, reason);
+        receiveBuffer = [];
+        refreshBufferState();
+      }
+    }
+
+    function restartIdleTimer() {
+      clearTimeout(idleTimer);
+      if (!els.splitOnIdle.checked || receiveBuffer.length === 0) return;
+      const wait = Number(els.idleMs.value);
+      if (!Number.isFinite(wait) || wait < 1) return;
+      idleTimer = setTimeout(() => flushReceive("Pause " + wait + " ms"), wait);
+    }
+
+    function processIncoming(chunk) {
+      let splitByte = null;
+      try { splitByte = delimiterByte(); }
+      catch (error) {
+        showToast(error.message, true);
+        els.splitOnByte.checked = false;
+      }
+
+      for (const byte of chunk) {
+        receiveBuffer.push(byte);
+        rxBytes++;
+        if (splitByte !== null && byte === splitByte) flushReceive("Trennzeichen " + splitByte.toString(16).toUpperCase().padStart(2, "0"));
+      }
+      els.rxCount.textContent = rxBytes.toLocaleString("de-DE");
+      refreshBufferState();
+      restartIdleTimer();
+    }
+
+    async function readLoop() {
+      keepReading = true;
+      try {
+        while (port && port.readable && keepReading) {
+          reader = port.readable.getReader();
+          try {
+            while (keepReading) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value?.length) processIncoming(value);
+            }
+          } catch (error) {
+            if (keepReading) showToast("Lesefehler: " + error.message, true);
+          } finally {
+            reader.releaseLock();
+            reader = null;
+          }
+        }
+      } finally {
+        if (keepReading) await disconnect(false);
+      }
+    }
+
+    async function connect() {
+      try {
+        delimiterByte();
+        port = await navigator.serial.requestPort();
+        await port.open({
+          baudRate: Number(els.baudRate.value),
+          dataBits: Number(els.dataBits.value),
+          stopBits: Number(els.stopBits.value),
+          parity: els.parity.value,
+          flowControl: els.flowControl.value,
+          bufferSize: 16384
+        });
+        setConnected(true);
+        showToast("COM-Port geöffnet: " + els.dataBits.value + (els.parity.value === "even" ? "E" : els.parity.value === "odd" ? "O" : "N") + els.stopBits.value + " bei " + els.baudRate.value + " Baud");
+        readLoop();
+      } catch (error) {
+        port = null;
+        setConnected(false);
+        if (error.name !== "NotFoundError") showToast("Port konnte nicht geöffnet werden: " + error.message, true);
+      }
+    }
+
+    async function disconnect(notify = true) {
+      keepReading = false;
+      clearTimeout(idleTimer);
+      flushReceive("Verbindung beendet");
+      try {
+        if (reader) await reader.cancel();
+      } catch (_) {}
+      try {
+        if (port?.readable || port?.writable) await port.close();
+      } catch (error) {
+        if (notify) showToast("Fehler beim Trennen: " + error.message, true);
+      } finally {
+        port = null;
+        setConnected(false);
+        if (notify) showToast("Verbindung getrennt");
+      }
+    }
+
+    function parseHexInput(text) {
+      const cleaned = text.trim();
+      if (!cleaned) return new Uint8Array();
+      const tokens = cleaned.split(/[\s,;:-]+/).filter(Boolean);
+      const values = tokens.map(token => {
+        const normalized = token.replace(/^0x/i, "");
+        if (!/^[0-9a-fA-F]{1,2}$/.test(normalized)) throw new Error("Ungültiges Hex-Byte: " + token);
+        return parseInt(normalized, 16);
+      });
+      return Uint8Array.from(values);
+    }
+
+    async function send() {
+      if (!port?.writable) return showToast("Es besteht keine schreibbare Verbindung.", true);
+      try {
+        const mode = document.querySelector('input[name="sendMode"]:checked').value;
+        let bytes = mode === "hex" ? parseHexInput(els.sendData.value) : new TextEncoder().encode(els.sendData.value);
+        const suffix = [];
+        if (els.appendCr.checked) suffix.push(0x0D);
+        if (els.appendLf.checked) suffix.push(0x0A);
+        if (suffix.length) bytes = Uint8Array.from([...bytes, ...suffix]);
+        if (!bytes.length) return showToast("Keine Daten zum Senden eingegeben.", true);
+
+        const writer = port.writable.getWriter();
+        try { await writer.write(bytes); }
+        finally { writer.releaseLock(); }
+
+        txBytes += bytes.length;
+        els.txCount.textContent = txBytes.toLocaleString("de-DE");
+        addLog("TX", bytes);
+      } catch (error) {
+        showToast("Senden fehlgeschlagen: " + error.message, true);
+      }
+    }
+
+    function plainLog() {
+      return logEntries
+        .map(e => `${e.time}\t${e.direction}\t${hex(e.bytes)}${e.reason ? "\t" + e.reason : ""}`)
+        .join("");
+    }
+
+    async function copyLog() {
+      try {
+        await navigator.clipboard.writeText(plainLog());
+        showToast("Protokoll kopiert");
+      } catch (error) {
+        showToast("Kopieren fehlgeschlagen: " + error.message, true);
+      }
+    }
+
+    function exportLog() {
+      const header = "Zeitstempel\tRichtung\tBytes (Hex)\tZeilenabschluss";
+      const blob = new Blob(
+        ["\uFEFF", header, plainLog()],
+        { type: "text/tab-separated-values;charset=utf-8" }
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "serial-log-" + new Date().toISOString().replace(/[:.]/g, "-") + ".tsv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function clearLog() {
+      logEntries.length = 0;
+      receiveBuffer = [];
+      rxBytes = 0;
+      txBytes = 0;
+      els.rxCount.textContent = "0";
+      els.txCount.textContent = "0";
+      refreshBufferState();
+      els.terminal.innerHTML = '<div class="empty">Noch keine Daten empfangen oder gesendet.</div>';
+    }
+
+    els.connectBtn.addEventListener("click", connect);
+    els.disconnectBtn.addEventListener("click", () => disconnect(true));
+    els.sendBtn.addEventListener("click", send);
+    els.sendClearBtn.addEventListener("click", () => { els.sendData.value = ""; els.sendData.focus(); });
+    els.clearBtn.addEventListener("click", clearLog);
+    els.copyBtn.addEventListener("click", copyLog);
+    els.exportBtn.addEventListener("click", exportLog);
+    els.splitOnIdle.addEventListener("change", restartIdleTimer);
+    els.idleMs.addEventListener("change", restartIdleTimer);
+    els.sendData.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") send();
+    });
+
+    navigator.serial?.addEventListener("disconnect", event => {
+      if (event.target === port) {
+        showToast("Das serielle Gerät wurde getrennt.", true);
+        disconnect(false);
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      keepReading = false;
+      if (reader) reader.cancel().catch(() => {});
+    });
+
+
+    /* ============================================================
+       SML-Live-Parser
+       Erkennt SML-Transportdateien, dekodiert TL-Felder und zeigt
+       gefundene OBIS-Listeneintraege tabellarisch an.
+       ============================================================ */
+    (() => {
+      const START = [0x1B, 0x1B, 0x1B, 0x1B, 0x01, 0x01, 0x01, 0x01];
+      const END = [0x1B, 0x1B, 0x1B, 0x1B, 0x1A];
+      let smlStream = [];
+      let smlFileCount = 0;
+      let smlValueCount = 0;
+
+
+      const smlStyle = document.createElement("style");
+      smlStyle.textContent = `
+        .main { grid-template-rows: minmax(400px, 58vh) auto auto; }
+        .sml-summary {
+          display:grid;
+          grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+          gap:10px;
+          margin-bottom:14px;
+        }
+        .sml-stat {
+          background:#071522;
+          border:1px solid var(--line);
+          border-radius:12px;
+          padding:11px 12px;
+        }
+        .sml-stat-label { color:var(--muted);font-size:.76rem;margin-bottom:4px; }
+        .sml-stat-value { font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums; }
+        .sml-table-wrap {
+          max-height:360px;
+          overflow:auto;
+          border:1px solid var(--line);
+          border-radius:12px;
+          background:#07111c;
+        }
+        .sml-table { width:100%;border-collapse:collapse;font-size:.84rem; }
+        .sml-table th {
+          position:sticky;top:0;z-index:1;
+          padding:9px 10px;
+          text-align:left;
+          color:var(--muted);
+          background:#10243a;
+          border-bottom:1px solid var(--line);
+          white-space:nowrap;
+        }
+        .sml-table td {
+          padding:8px 10px;
+          border-bottom:1px solid #ffffff0a;
+          vertical-align:top;
+          font-family:Consolas,"Cascadia Mono",monospace;
+        }
+        .sml-table tr:hover td { background:#ffffff08; }
+        .sml-obis { color:var(--accent2);font-weight:700;white-space:nowrap; }
+        .sml-number { color:#b9dcff;text-align:right;white-space:nowrap; }
+        .sml-status-ok { color:var(--accent2); }
+        .sml-status-wait { color:var(--warning); }
+        .sml-error { color:#ff9b9b; }
+        .sml-toolbar { display:flex;flex-wrap:wrap;gap:8px;align-items:center; }
+        .sml-raw {
+          margin-top:12px;
+          border:1px solid var(--line);
+          border-radius:12px;
+          overflow:hidden;
+        }
+        .sml-raw summary {
+          cursor:pointer;padding:10px 12px;background:#10243a;color:var(--muted);
+        }
+        .sml-tree {
+          max-height:320px;overflow:auto;margin:0;padding:12px;
+          background:#030b13;color:#cde2f7;
+          font:12px/1.5 Consolas,"Cascadia Mono",monospace;
+          white-space:pre-wrap;overflow-wrap:anywhere;
+        }
+      `;
+      document.head.appendChild(smlStyle);
+
+
+      const smlPanel = document.createElement("section");
+      smlPanel.className = "panel";
+      smlPanel.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <strong>SML / Smart Message Language</strong>
+            <span id="smlStatus" class="sml-status-wait">Warte auf SML-Startsequenz</span>
+          </div>
+          <div class="sml-toolbar">
+            <label class="checkline"><input id="smlAutoParse" type="checkbox" checked> Automatisch parsen</label>
+            <button id="smlExportBtn">SML als JSON</button>
+            <button id="smlClearBtn" class="danger">SML leeren</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="sml-summary">
+            <div class="sml-stat"><div class="sml-stat-label">SML-Dateien</div><div id="smlFiles" class="sml-stat-value">0</div></div>
+            <div class="sml-stat"><div class="sml-stat-label">OBIS-Werte</div><div id="smlValues" class="sml-stat-value">0</div></div>
+            <div class="sml-stat"><div class="sml-stat-label">Letzte Datei</div><div id="smlLastSize" class="sml-stat-value">-</div></div>
+            <div class="sml-stat"><div class="sml-stat-label">Fuellbytes / CRC</div><div id="smlTransport" class="sml-stat-value">-</div></div>
+          </div>
+          <div class="sml-table-wrap">
+            <table class="sml-table">
+              <thead><tr><th>Zeit</th><th>OBIS</th><th>Bezeichnung</th><th>Rohwert</th><th>Skalierung</th><th>Wert</th><th>Einheit</th></tr></thead>
+              <tbody id="smlTableBody"><tr><td colspan="7" class="empty">Noch keine SML-Messwerte erkannt.</td></tr></tbody>
+            </table>
+          </div>
+          <details class="sml-raw">
+            <summary>Vollstaendige dekodierte SML-Struktur</summary>
+            <pre id="smlTree" class="sml-tree">Noch keine SML-Datei dekodiert.</pre>
+          </details>
+        </div>`;
+
+
+      const sendPanel = document.querySelector("main.main section:nth-of-type(2)");
+      sendPanel.parentNode.insertBefore(smlPanel, sendPanel);
+
+
+      const s = {
+        status: document.getElementById("smlStatus"),
+        auto: document.getElementById("smlAutoParse"),
+        files: document.getElementById("smlFiles"),
+        values: document.getElementById("smlValues"),
+        lastSize: document.getElementById("smlLastSize"),
+        transport: document.getElementById("smlTransport"),
+        body: document.getElementById("smlTableBody"),
+        tree: document.getElementById("smlTree"),
+        clear: document.getElementById("smlClearBtn"),
+        export: document.getElementById("smlExportBtn")
+      };
+
+
+      const parsedSmlFiles = [];
+      const OBIS_NAMES = {
+        "1-0:1.8.0*255": "Bezug Gesamt",
+        "1-0:1.8.1*255": "Bezug Tarif 1",
+        "1-0:1.8.2*255": "Bezug Tarif 2",
+        "1-0:2.8.0*255": "Lieferung Gesamt",
+        "1-0:2.8.1*255": "Lieferung Tarif 1",
+        "1-0:2.8.2*255": "Lieferung Tarif 2",
+        "1-0:16.7.0*255": "Wirkleistung Gesamt",
+        "1-0:21.7.0*255": "Wirkleistung L1",
+        "1-0:41.7.0*255": "Wirkleistung L2",
+        "1-0:61.7.0*255": "Wirkleistung L3",
+        "1-0:31.7.0*255": "Strom L1",
+        "1-0:51.7.0*255": "Strom L2",
+        "1-0:71.7.0*255": "Strom L3",
+        "1-0:32.7.0*255": "Spannung L1",
+        "1-0:52.7.0*255": "Spannung L2",
+        "1-0:72.7.0*255": "Spannung L3",
+        "0-0:96.1.0*255": "Zaehleridentifikation"
+      };
+      const UNITS = {
+        1:"a",2:"mo",3:"wk",4:"d",5:"h",6:"min",7:"s",
+        8:"deg",9:"degC",10:"currency",11:"m",12:"m/s",13:"m3",14:"m3",
+        15:"m3/h",16:"m3/h",17:"m3/d",18:"m3/d",19:"l",20:"kg",21:"N",
+        22:"Nm",23:"Pa",24:"bar",25:"J",26:"J/h",27:"W",28:"VA",29:"var",
+        30:"Wh",31:"VAh",32:"varh",33:"A",34:"C",35:"V",36:"V/m",37:"F",
+        38:"Ohm",39:"Ohm m2/m",40:"Wb",41:"T",42:"A/m",43:"H",44:"Hz",
+        45:"1/(Wh)",46:"1/(varh)",47:"1/(VAh)",48:"V2h",49:"A2h",50:"kg/s",
+        51:"S",52:"K",53:"1/(V2h)",54:"1/(A2h)",55:"1/m3",56:"%",57:"Ah",
+        60:"Wh/m3",61:"J/m3",62:"mol %",63:"g/m3",64:"Pa s",65:"J/kg",
+        66:"g/cm2",67:"atm",70:"dBm",71:"dBµV",72:"dB"
+      };
+
+
+      function indexOfSequence(haystack, needle, from = 0) {
+        outer: for (let i = from; i <= haystack.length - needle.length; i++) {
+          for (let j = 0; j < needle.length; j++) if (haystack[i + j] !== needle[j]) continue outer;
+          return i;
+        }
+        return -1;
+      }
+
+
+      function unescapeSml(bytes) {
+        const out = [];
+        for (let i = 0; i < bytes.length; i++) {
+          if (i + 7 < bytes.length && bytes.slice(i, i + 8).every(v => v === 0x1B)) {
+            out.push(0x1B, 0x1B, 0x1B, 0x1B);
+            i += 7;
+          } else out.push(bytes[i]);
+        }
+        return out;
+      }
+
+
+      function unsignedBigEndian(bytes) {
+        let value = 0n;
+        for (const b of bytes) value = (value << 8n) | BigInt(b);
+        return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value.toString();
+      }
+
+
+      function signedBigEndian(bytes) {
+        if (!bytes.length) return 0;
+        let value = 0n;
+        for (const b of bytes) value = (value << 8n) | BigInt(b);
+        if (bytes[0] & 0x80) value -= 1n << BigInt(bytes.length * 8);
+        return value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER)
+          ? Number(value) : value.toString();
+      }
+
+
+      function parseElement(data, state, depth = 0) {
+        if (depth > 80) throw new Error("Maximale SML-Verschachtelung ueberschritten");
+        if (state.pos >= data.length) throw new Error("Unerwartetes Ende der SML-Nutzdaten");
+
+
+        const first = data[state.pos++];
+        if (first === 0x00) return { type: "optional", value: null };
+
+
+        const type = (first >> 4) & 0x07;
+        let length = first & 0x0F;
+        let tlBytes = 1;
+        let current = first;
+        while (current & 0x80) {
+          if (state.pos >= data.length || tlBytes > 7) throw new Error("Ungueltiges SML-TL-Feld");
+          current = data[state.pos++];
+          length = (length << 4) | (current & 0x0F);
+          tlBytes++;
+        }
+
+
+        if (type === 7) {
+          const items = [];
+          for (let i = 0; i < length; i++) items.push(parseElement(data, state, depth + 1));
+          return { type: "list", count: length, value: items };
+        }
+
+
+        const payloadLength = length - tlBytes;
+        if (payloadLength < 0 || state.pos + payloadLength > data.length) throw new Error("Ungueltige SML-Laengenangabe");
+        const raw = data.slice(state.pos, state.pos + payloadLength);
+        state.pos += payloadLength;
+
+
+        if (type === 0) return { type: "octet", hex: hex(raw), value: raw };
+        if (type === 4) return { type: "boolean", value: raw[0] !== 0 };
+        if (type === 5) return { type: "integer", value: signedBigEndian(raw) };
+        if (type === 6) return { type: "unsigned", value: unsignedBigEndian(raw) };
+        return { type: "type-" + type, hex: hex(raw), value: raw };
+      }
+
+
+      function parsePayload(payload) {
+        const state = { pos: 0 };
+        const roots = [];
+        while (state.pos < payload.length) {
+          if (payload[state.pos] === 0x00) { state.pos++; continue; }
+          const before = state.pos;
+          try { roots.push(parseElement(payload, state)); }
+          catch (error) {
+            roots.push({ type:"parse-error", offset:before, error:error.message, remainingHex:hex(payload.slice(before)) });
+            break;
+          }
+        }
+        return roots;
+      }
+
+
+      function formatObis(bytes) {
+        if (!Array.isArray(bytes) || bytes.length !== 6) return null;
+        return `${bytes[0]}-${bytes[1]}:${bytes[2]}.${bytes[3]}.${bytes[4]}*${bytes[5]}`;
+      }
+
+
+      function primitive(node) {
+        if (!node || node.type === "optional") return null;
+        if (["integer", "unsigned", "boolean"].includes(node.type)) return node.value;
+        if (node.type === "octet") return node.hex;
+        return null;
+      }
+
+
+      function collectObis(node, output = []) {
+        if (!node) return output;
+        if (node.type === "list" && Array.isArray(node.value)) {
+          const list = node.value;
+          if (list.length >= 6 && list[0]?.type === "octet" && list[0].value?.length === 6) {
+            const obis = formatObis(list[0].value);
+            const unitNo = Number(primitive(list[3]));
+            const scaler = Number(primitive(list[4]));
+            const rawValue = primitive(list[5]);
+            let scaledValue = rawValue;
+            if (typeof rawValue === "number" && Number.isFinite(scaler)) scaledValue = rawValue * Math.pow(10, scaler);
+            output.push({
+              obis,
+              name: OBIS_NAMES[obis] || "",
+              status: primitive(list[1]),
+              unitNo: Number.isFinite(unitNo) ? unitNo : null,
+              unit: UNITS[unitNo] || (Number.isFinite(unitNo) ? "Code " + unitNo : ""),
+              scaler: Number.isFinite(scaler) ? scaler : null,
+              rawValue,
+              value: scaledValue
+            });
+          }
+          for (const child of list) collectObis(child, output);
+        }
+        return output;
+      }
+
+
+      function jsonReplacer(key, value) {
+        if (key === "value" && Array.isArray(value) && this?.type === "octet") return hex(value);
+        if (typeof value === "bigint") return value.toString();
+        return value;
+      }
+
+
+      function addSmlRows(entries, fileTime) {
+        const empty = s.body.querySelector(".empty");
+        if (empty) empty.closest("tr").remove();
+        for (const e of entries) {
+          const tr = document.createElement("tr");
+          const cells = [
+            fileTime,
+            e.obis,
+            e.name || "Unbekannter OBIS-Code",
+            e.rawValue ?? "-",
+            e.scaler ?? "-",
+            typeof e.value === "number" ? e.value.toLocaleString("de-DE", { maximumFractionDigits: 12 }) : (e.value ?? "-"),
+            e.unit || "-"
+          ];
+          cells.forEach((text, index) => {
+            const td = document.createElement("td");
+            td.textContent = String(text);
+            if (index === 1) td.className = "sml-obis";
+            if ([3, 4, 5].includes(index)) td.classList.add("sml-number");
+            tr.appendChild(td);
+          });
+          s.body.appendChild(tr);
+        }
+      }
+
+
+      function processSmlFile(frame, endAt) {
+        try {
+          const filler = frame[endAt + 5];
+          const crcLow = frame[endAt + 6];
+          const crcHigh = frame[endAt + 7];
+          const encodedPayload = frame.slice(START.length, endAt);
+          const withoutPadding = encodedPayload.slice(0, Math.max(0, encodedPayload.length - filler));
+          const payload = unescapeSml(withoutPadding);
+          const tree = parsePayload(payload);
+          const entries = collectObis({ type:"list", value:tree });
+          const time = timestamp();
+          const parsed = {
+            receivedAt: new Date().toISOString(),
+            frameLength: frame.length,
+            payloadLength: payload.length,
+            fillerBytes: filler,
+            transmittedCrc: [crcLow, crcHigh].map(v => v.toString(16).toUpperCase().padStart(2,"0")).join(" "),
+            obisValues: entries,
+            structure: tree
+          };
+          parsedSmlFiles.push(parsed);
+          smlFileCount++;
+          smlValueCount += entries.length;
+          s.files.textContent = smlFileCount.toLocaleString("de-DE");
+          s.values.textContent = smlValueCount.toLocaleString("de-DE");
+          s.lastSize.textContent = frame.length + " Bytes";
+          s.transport.textContent = filler + " / " + parsed.transmittedCrc;
+          s.tree.textContent = JSON.stringify(parsed, jsonReplacer, 2);
+          if (entries.length) addSmlRows(entries, time);
+          s.status.textContent = entries.length
+            ? `${entries.length} OBIS-Wert${entries.length === 1 ? "" : "e"} dekodiert`
+            : "SML-Datei erkannt, keine Listeneintraege gefunden";
+          s.status.className = entries.length ? "sml-status-ok" : "sml-status-wait";
+        } catch (error) {
+          s.status.textContent = "Parserfehler: " + error.message;
+          s.status.className = "sml-error";
+        }
+      }
+
+
+      function feedSml(chunk) {
+        if (!s.auto.checked) return;
+        smlStream.push(...chunk);
+        if (smlStream.length > 2_000_000) smlStream = smlStream.slice(-200_000);
+
+
+        while (true) {
+          const startAt = indexOfSequence(smlStream, START);
+          if (startAt < 0) {
+            smlStream = smlStream.slice(-7);
+            s.status.textContent = "Warte auf SML-Startsequenz";
+            s.status.className = "sml-status-wait";
+            return;
+          }
+          if (startAt > 0) smlStream.splice(0, startAt);
+          const endAt = indexOfSequence(smlStream, END, START.length);
+          if (endAt < 0) {
+            s.status.textContent = "SML-Datei wird empfangen: " + smlStream.length + " Bytes";
+            s.status.className = "sml-status-wait";
+            return;
+          }
+          const completeLength = endAt + 8;
+          if (smlStream.length < completeLength) return;
+          const frame = smlStream.slice(0, completeLength);
+          smlStream.splice(0, completeLength);
+          processSmlFile(frame, endAt);
+        }
+      }
+
+
+      const originalProcessIncoming = processIncoming;
+      processIncoming = function(chunk) {
+        feedSml(chunk);
+        originalProcessIncoming(chunk);
+      };
+
+
+      s.clear.addEventListener("click", () => {
+        smlStream = [];
+        parsedSmlFiles.length = 0;
+        smlFileCount = 0;
+        smlValueCount = 0;
+        s.files.textContent = "0";
+        s.values.textContent = "0";
+        s.lastSize.textContent = "-";
+        s.transport.textContent = "-";
+        s.status.textContent = "Warte auf SML-Startsequenz";
+        s.status.className = "sml-status-wait";
+        s.tree.textContent = "Noch keine SML-Datei dekodiert.";
+        s.body.innerHTML = '<tr><td colspan="7" class="empty">Noch keine SML-Messwerte erkannt.</td></tr>';
+      });
+
+
+      s.export.addEventListener("click", () => {
+        if (!parsedSmlFiles.length) return showToast("Noch keine SML-Datei zum Exportieren vorhanden.", true);
+        const blob = new Blob([JSON.stringify(parsedSmlFiles, jsonReplacer, 2)], { type:"application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "sml-smartmeter-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    })();
+  </script>
+</body>
+</html>
