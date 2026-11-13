@@ -76,6 +76,11 @@ Der Parser erkennt automatisch SML-Transportdateien:
 - Vollständige dekodierte Struktur als JSON-Baum einblendbar
 - Export aller erkannten SML-Dateien als JSON (`SML als JSON`)
 
+## Web GUI
+
+
+![Oberfläsche](SerielleCOM-Port-Konsole.png)
+
 ## Datenschutz
 
 Die Datei arbeitet vollständig lokal im Browser. Es werden keine Daten an
